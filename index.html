@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Foam Property Predictor</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <main class="shell">
+    <aside class="panel controls">
+      <div class="brand">
+        <div class="mark">FP</div>
+        <div>
+          <h1>Foam Property Predictor</h1>
+          <p>BC(t) + Ravg(t), HD and no-HD modes</p>
+        </div>
+      </div>
+
+      <form id="predict-form">
+        <label>Model mode
+          <select id="mode" name="mode">
+            <option value="hd">HD best models</option>
+            <option value="no_hd">No-HD best models</option>
+          </select>
+        </label>
+        <label>Surfactant
+          <select id="surfactant_type" name="surfactant_type"></select>
+        </label>
+        <label>Nanoparticle
+          <select id="nanoparticle_type" name="nanoparticle_type"></select>
+        </label>
+        <div class="field-with-slider">
+          <label for="concentration_wt">Concentration wt
+            <input id="concentration_wt" name="concentration_wt" type="number" step="0.000001">
+          </label>
+          <input id="concentration_wt_slider" type="range" aria-label="Concentration wt slider">
+        </div>
+        <div class="split">
+          <div class="field-with-slider">
+            <label for="time_min_s">Start s
+              <input id="time_min_s" name="time_min_s" type="number" step="1">
+            </label>
+            <input id="time_min_s_slider" type="range" aria-label="Start time slider">
+          </div>
+          <div class="field-with-slider">
+            <label for="time_max_s">End s
+              <input id="time_max_s" name="time_max_s" type="number" step="1">
+            </label>
+            <input id="time_max_s_slider" type="range" aria-label="End time slider">
+          </div>
+        </div>
+        <div id="hd-fields" class="hd-fields">
+          <div class="field-with-slider">
+            <label for="hfoam">HD foam height
+              <input id="hfoam" name="hfoam" type="number" step="0.001">
+            </label>
+            <input id="hfoam_slider" type="range" aria-label="HD foam height slider">
+          </div>
+          <div class="field-with-slider">
+            <label for="hliquid">HD liquid height
+              <input id="hliquid" name="hliquid" type="number" step="0.001">
+            </label>
+            <input id="hliquid_slider" type="range" aria-label="HD liquid height slider">
+          </div>
+        </div>
+      </form>
+
+      <section class="model-note">
+        <h2>Model Notes</h2>
+        <ul id="model-notes"></ul>
+      </section>
+    </aside>
+
+    <section class="workspace">
+      <div class="status-row">
+        <div class="metric"><span>BC half-life</span><strong id="bc-half-life">--</strong><small id="bc-half-life-range">--</small></div>
+        <div class="metric"><span>BC retention</span><strong id="bc-retention">--</strong></div>
+        <div class="metric"><span>Ravg growth</span><strong id="ravg-growth">--</strong></div>
+        <div class="metric"><span>BC uncertainty %</span><strong id="bc-uncertainty">--</strong></div>
+        <div class="metric"><span>Ravg uncertainty %</span><strong id="ravg-uncertainty">--</strong></div>
+        <div class="metric"><span>Model confidence</span><strong id="trust">--</strong></div>
+      </div>
+
+      <section class="chart-band">
+        <div class="chart-head">
+          <div>
+            <h2>Predicted Time Curves</h2>
+            <p id="curve-subtitle">BC(t) and Ravg(t) are predicted together from whole-curve support interpolation.</p>
+          </div>
+          <div class="legend">
+            <span><i class="bc"></i>BC(t)</span>
+            <span><i class="ravg"></i>Ravg(t)</span>
+            <span><i class="band"></i>uncertainty</span>
+            <span><i class="regime"></i>half-life regime</span>
+          </div>
+        </div>
+        <canvas id="curve-chart" width="1120" height="540"></canvas>
+        <div id="chart-tooltip" class="chart-tooltip" hidden></div>
+      </section>
+
+      <section class="grid-two">
+        <div class="panel">
+          <h2>Visual Interpretation</h2>
+          <p id="visual-explanation">The GUI will translate the predicted curves into bubble stability cues.</p>
+          <div class="cue-list" id="science-cues"></div>
+        </div>
+        <div class="panel">
+          <h2>Nearest Support Curves</h2>
+          <div class="support-grid">
+            <div>
+              <h3>BC(t)</h3>
+              <ol id="bc-supports"></ol>
+            </div>
+            <div>
+              <h3>Ravg(t)</h3>
+              <ol id="ravg-supports"></ol>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel compact">
+        <h2>Science Background</h2>
+        <div class="science-grid">
+          <p><strong>Foam:</strong> gas bubbles separated by thin liquid films.</p>
+          <p><strong>Stable clue:</strong> many small bubbles stay separated over time.</p>
+          <p><strong>Failure clue:</strong> drainage, coalescence, coarsening, wall breakage, or collapse patches.</p>
+          <p><strong>Model judge:</strong> believable predictions change step by step, not by sudden jumps.</p>
+        </div>
+      </section>
+    </section>
+  </main>
+  <script src="app.js"></script>
+</body>
+</html>
