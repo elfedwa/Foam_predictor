@@ -4,6 +4,12 @@ Self-contained deployment of the pinned support-aware Level 5 v2 bubble-image re
 
 The application predicts bubble morphology from formulation and height measurements, then selects the closest validated microscopy prototype. The repository includes a compact 960 px WebP atlas containing every prototype referenced by the deployed model. The original 4.84 GB raw image library is not required for normal inference.
 
+## Live application
+
+[Open the Bubble Image Reconstructor](https://elfedwa.github.io/Foam_predictor/bubble-image-reconstructor/)
+
+The GitHub Pages build runs the full predictor in the browser from `static_model_data.json`. It does not require Python, a backend server, or the raw image library.
+
 ## Inputs
 
 - surfactant
@@ -28,6 +34,7 @@ Set a different port with `BUBBLE_RECON_PORT`. If the bundled atlas is removed, 
 ## Included runtime artifacts
 
 - seven compact branch model archives
+- browser-native static model payload
 - Level 5 v2 champion manifest and branch validation summary
 - full calibration table used for branch-specific support confidence
 - 3,500 hashed deployment frames at 960 px width

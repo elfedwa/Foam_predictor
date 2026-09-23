@@ -44,6 +44,8 @@ const els = {
 let meta = null;
 let predictTimer = null;
 let latestRequest = 0;
+let staticData = null;
+let runtimeMode = "api";
 
 function option(value) {
   const element = document.createElement("option");
@@ -220,22 +222,243 @@ function showError(error) {
   els.supportConfidence.textContent = error.message;
 }
 
+function vectorMeanSquaredDistance(left, right, weights = null) {
+  let total = 0;
+  for (let index = 0; index < left.length; index += 1) {
+    const weight = weights ? weights[index] : 1;
+    const delta = (left[index] - right[index]) * weight;
+    total += delta * delta;
+  }
+  return Math.sqrt(total / left.length);
+}
+
+function standardized(values, mean, sd, limit = null) {
+  return values.map((value, index) => {
+    const z = (value - mean[index]) / Math.max(sd[index], 1e-6);
+    return limit === null ? z : clamp(Number.isFinite(z) ? z : 0, -limit, limit);
+  });
+}
+
+function quadraticBasis(raw, mean, sd, limit = null) {
+  const z = standardized(raw, mean, sd, limit);
+  const basis = [1, ...z, ...z.map(value => value * value)];
+  for (let left = 0; left < z.length; left += 1) {
+    for (let right = left + 1; right < z.length; right += 1) {
+      basis.push(z[left] * z[right]);
+    }
+  }
+  return basis;
+}
+
+function boundaryRegime(config, timeS, concentration) {
+  const logC = Math.log(Math.max(concentration, 1e-8));
+  let logThreshold;
+  if (config.kind === "boundary_linear") {
+    logThreshold = config.coefficients[0] + config.coefficients[1] * logC;
+  } else if (config.kind === "boundary_quadratic") {
+    logThreshold = config.coefficients[0] + config.coefficients[1] * logC + config.coefficients[2] * logC * logC;
+  } else {
+    const xs = config.log_concentration;
+    const ys = config.log1p_boundary_time;
+    if (logC <= xs[0]) logThreshold = ys[0];
+    else if (logC >= xs[xs.length - 1]) logThreshold = ys[ys.length - 1];
+    else {
+      let upper = 1;
+      while (upper < xs.length && xs[upper] < logC) upper += 1;
+      const fraction = (logC - xs[upper - 1]) / (xs[upper] - xs[upper - 1]);
+      logThreshold = ys[upper - 1] + fraction * (ys[upper] - ys[upper - 1]);
+    }
+  }
+  const threshold = Math.expm1(clamp(logThreshold, 0, 10));
+  return { regime: timeS >= threshold ? 1 : 0, threshold };
+}
+
+function predictMorphology(model, raw) {
+  const basis = quadraticBasis(raw, model.input_mean, model.input_sd);
+  return model.target_mean.map((mean, target) => {
+    let standardizedPrediction = 0;
+    for (let index = 0; index < basis.length; index += 1) {
+      standardizedPrediction += basis[index] * model.coefficients[index][target];
+    }
+    let value = standardizedPrediction * model.target_sd[target] + mean;
+    value = clamp(value, model.target_lo[target], model.target_hi[target]);
+    if (target === 0 || target === 3) value = clamp(value, 0, 1);
+    if (target > 0) value = Math.max(value, 0);
+    return value;
+  });
+}
+
+function predictRegime(model, raw, timeS, concentration) {
+  const router = model.router;
+  if (model.kind === "exact_parent") {
+    const result = boundaryRegime(router, timeS, concentration);
+    return { ...result, classifier: router.kind };
+  }
+  if (router.routing === "nearest_supported_boundary") {
+    const result = boundaryRegime(router.classifier, timeS, concentration);
+    return { ...result, classifier: router.classifier.kind };
+  }
+  const classifier = router.classifier;
+  if (classifier.kind === "knn") {
+    const queryZ = standardized(raw, model.input_mean, model.input_sd);
+    const weights = [1, 1, 0.35, Number(classifier.descriptor_weight)];
+    const distances = model.atlas_inputs.map(values =>
+      vectorMeanSquaredDistance(queryZ, standardized(values, model.input_mean, model.input_sd), weights)
+    );
+    const nearest = distances.map((distance, index) => ({ distance, index }))
+      .sort((left, right) => left.distance - right.distance)
+      .slice(0, Math.min(Number(classifier.neighbors), distances.length));
+    let weightedVote = 0;
+    let voteWeight = 0;
+    nearest.forEach(item => {
+      const weight = 1 / Math.max(item.distance, 1e-4);
+      weightedVote += weight * model.atlas_morphology[item.index][0];
+      voteWeight += weight;
+    });
+    return { regime: weightedVote / voteWeight >= 0.5 ? 1 : 0, threshold: null, classifier: "knn" };
+  }
+  const basis = quadraticBasis(raw, model.input_mean, model.input_sd, 6);
+  const score = basis.reduce((total, value, index) => total + value * classifier.coefficients[index], 0);
+  return { regime: score >= Number(classifier.threshold) ? 1 : 0, threshold: null, classifier: "balanced_ridge" };
+}
+
+function sampleStandardDeviation(rows, column) {
+  if (rows.length < 2) return 0;
+  const mean = rows.reduce((total, row) => total + row[column], 0) / rows.length;
+  const variance = rows.reduce((total, row) => total + (row[column] - mean) ** 2, 0) / (rows.length - 1);
+  return Math.sqrt(variance);
+}
+
+function staticPredict(payload) {
+  const branch = `${payload.surfactant_type} | ${payload.nanoparticle_type}`;
+  const model = staticData.branches[branch];
+  if (!model) throw new Error("Unsupported surfactant-nanoparticle combination");
+  const range = meta.ranges[payload.surfactant_type][payload.nanoparticle_type];
+  const concentration = clamp(Number(payload.concentration_wt), range.concentration_wt.min, range.concentration_wt.max);
+  const timeS = clamp(Number(payload.time_s), range.time_s.min, range.time_s.max);
+  const hfoam = clamp(Number(payload.hfoam), range.hfoam.min, range.hfoam.max);
+  const raw = [Math.log1p(Math.max(timeS, 0)), hfoam, Math.log(Math.max(concentration, 1e-8))];
+  if (model.kind === "descriptor") raw.push(Number(model.descriptor));
+
+  const predicted = predictMorphology(model, raw);
+  const routed = predictRegime(model, raw, timeS, concentration);
+  predicted[0] = routed.regime;
+  if (routed.regime < 0.5) {
+    predicted[3] = 0;
+    predicted[4] = 0;
+  }
+
+  const queryZ = standardized(raw, model.input_mean, model.input_sd);
+  const inputWeights = model.kind === "descriptor" ? [1, 1, 0.35, 1] : raw.map(() => 1);
+  const queryMorphologyZ = standardized(predicted, model.target_mean, model.target_sd);
+  const distances = model.atlas_inputs.map((values, index) => {
+    const inputDistance = vectorMeanSquaredDistance(
+      queryZ,
+      standardized(values, model.input_mean, model.input_sd),
+      inputWeights
+    );
+    const morphologyDistance = vectorMeanSquaredDistance(
+      queryMorphologyZ,
+      standardized(model.atlas_morphology[index], model.target_mean, model.target_sd)
+    );
+    const mismatch = (predicted[0] >= 0.5) !== (model.atlas_morphology[index][0] >= 0.5) ? 2 : 0;
+    return 0.30 * inputDistance + 0.70 * morphologyDistance + mismatch;
+  });
+  const order = distances.map((distance, index) => ({ distance, index }))
+    .sort((left, right) => left.distance - right.distance)
+    .slice(0, 5);
+  const distance = order[0].distance;
+  const supportConfidence = model.calibration.length
+    ? clamp(1 - model.calibration.filter(value => value <= distance).length / model.calibration.length, 0, 1)
+    : 0.5;
+  const supportedAccuracy = Number(model.summary.supported_balanced_regime_accuracy || 0);
+  const combinedTrust = Math.sqrt(Math.max(supportConfidence, 0.01) * Math.max(supportedAccuracy, 0.01));
+  const trustLabel = combinedTrust >= 0.75 ? "High" : combinedTrust >= 0.45 ? "Moderate" : "Low";
+  const ensemble = order.map(item => model.atlas_morphology[item.index]);
+  const uncertainty = predicted.map((_, target) => sampleStandardDeviation(ensemble, target));
+  const alternatives = order.map(item => ({
+    image_url: `atlas/${model.atlas_tokens[item.index]}.webp`,
+    nanoparticle: model.atlas_nanoparticles[item.index],
+    concentration_wt: Number(model.atlas_concentrations[item.index]),
+    time_s: Math.expm1(model.atlas_inputs[item.index][0]),
+    hfoam: model.atlas_inputs[item.index][1],
+    distance: item.distance,
+  }));
+  const morphology = {};
+  staticData.target_names.forEach((name, index) => {
+    morphology[name] = { value: predicted[index], support_sd: uncertainty[index] };
+  });
+
+  return {
+    branch,
+    input: {
+      surfactant_type: payload.surfactant_type,
+      nanoparticle_type: payload.nanoparticle_type,
+      concentration_wt: concentration,
+      time_s: timeS,
+      hfoam,
+    },
+    reconstruction: {
+      image_url: alternatives[0].image_url,
+      alternatives,
+      morphology,
+      regime: routed.regime >= 0.5 ? "wall network" : "bright droplets",
+      classifier: routed.classifier,
+      transition_time_s: routed.threshold,
+      prototype_distance: distance,
+      support_confidence: supportConfidence,
+      combined_trust: combinedTrust,
+      trust_label: trustLabel,
+    },
+    validation: {
+      selected_expert: model.summary.selected_expert,
+      SSIM: Number(model.summary.SSIM || 0),
+      image_MAE: Number(model.summary.image_MAE || 0),
+      balanced_regime_accuracy: Number(model.summary.balanced_regime_accuracy || 0),
+      supported_balanced_regime_accuracy: supportedAccuracy,
+      n_test_frames: Number(model.summary.n_test_frames || 0),
+    },
+  };
+}
+
+async function loadRuntime() {
+  try {
+    const response = await fetch("api/meta", { cache: "no-store" });
+    if (!response.ok || !response.headers.get("content-type")?.includes("application/json")) throw new Error("API unavailable");
+    meta = await response.json();
+    runtimeMode = "api";
+    return;
+  } catch (_error) {
+    const response = await fetch("static_model_data.json", { cache: "no-store" });
+    if (!response.ok) throw new Error("Static model payload is unavailable");
+    staticData = await response.json();
+    meta = staticData.meta;
+    runtimeMode = "static";
+  }
+}
+
 async function predict() {
   normalizeControls();
   const requestId = ++latestRequest;
-  const response = await fetch("/api/predict", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      surfactant_type: els.surfactant.value,
-      nanoparticle_type: els.nanoparticle.value,
-      concentration_wt: Number(els.concentration.value),
-      time_s: Number(els.time.value),
-      hfoam: Number(els.hfoam.value),
-    }),
-  });
-  const data = await response.json();
-  if (!response.ok || data.error) throw new Error(data.error || `Prediction failed (${response.status})`);
+  const payload = {
+    surfactant_type: els.surfactant.value,
+    nanoparticle_type: els.nanoparticle.value,
+    concentration_wt: Number(els.concentration.value),
+    time_s: Number(els.time.value),
+    hfoam: Number(els.hfoam.value),
+  };
+  let data;
+  if (runtimeMode === "static") {
+    data = staticPredict(payload);
+  } else {
+    const response = await fetch("api/predict", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    data = await response.json();
+    if (!response.ok || data.error) throw new Error(data.error || `Prediction failed (${response.status})`);
+  }
   if (requestId !== latestRequest) return;
   renderPrediction(data);
 }
@@ -246,8 +469,7 @@ function schedulePrediction(delay = 220) {
 }
 
 async function init() {
-  const response = await fetch("/api/meta");
-  meta = await response.json();
+  await loadRuntime();
   meta.surfactants.forEach(value => els.surfactant.appendChild(option(value)));
   els.surfactant.value = meta.defaults.surfactant_type;
   populateNanoparticles(true);
@@ -276,4 +498,5 @@ async function init() {
   await predict();
 }
 
+window.__bubbleStaticPredict = payload => staticPredict(payload);
 init().catch(showError);
