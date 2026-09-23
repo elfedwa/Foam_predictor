@@ -2,6 +2,8 @@
 
 Browser GUI for predicting `BC(t)` and `Ravg(t)` together from the saved best HD/no-HD model handoffs.
 
+The repository also contains the deployable [Bubble Image Reconstructor](bubble-image-reconstructor/README.md), powered by the pinned combined Level 5 v2 model and a compact bundled microscopy atlas.
+
 The app can run two ways:
 
 - local Python server, using the bundled `.pkl` predictors

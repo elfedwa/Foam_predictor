@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Bubble Image Reconstructor</title>
+  <link rel="stylesheet" href="styles.css?v=level5-v2-compact">
+</head>
+<body>
+  <main class="shell">
+    <aside class="controls">
+      <div class="brand">
+        <div class="mark">BR</div>
+        <div>
+          <h1>Bubble Image Reconstructor</h1>
+          <p>Support-aware Level 5 v2</p>
+        </div>
+      </div>
+
+      <form id="predict-form">
+        <label>Surfactant
+          <select id="surfactant_type" name="surfactant_type"></select>
+        </label>
+        <label>Nanoparticle
+          <select id="nanoparticle_type" name="nanoparticle_type"></select>
+        </label>
+        <div class="field-with-slider">
+          <label for="concentration_wt">Concentration wt.%
+            <input id="concentration_wt" name="concentration_wt" type="number" step="0.000001">
+          </label>
+          <input id="concentration_wt_slider" type="range" aria-label="Concentration slider">
+        </div>
+        <div class="field-with-slider">
+          <label for="time_s">Elapsed time (s)
+            <input id="time_s" name="time_s" type="number" step="1">
+          </label>
+          <input id="time_s_slider" type="range" aria-label="Elapsed time slider">
+        </div>
+        <div class="field-with-slider">
+          <label for="hfoam">Measured foam height
+            <input id="hfoam" name="hfoam" type="number" step="0.1">
+          </label>
+          <input id="hfoam_slider" type="range" aria-label="Measured foam height slider">
+        </div>
+      </form>
+
+      <section class="validation-block">
+        <h2>Validation</h2>
+        <dl>
+          <div><dt>Champion</dt><dd>Level 5 v2</dd></div>
+          <div><dt>Weighted SSIM</dt><dd id="global-ssim">--</dd></div>
+          <div><dt>Supported accuracy</dt><dd id="global-regime">--</dd></div>
+          <div><dt>Leakage audit</dt><dd>Passed</dd></div>
+        </dl>
+      </section>
+    </aside>
+
+    <section class="workspace">
+      <div class="status-row">
+        <div class="metric trust-metric"><span>Prediction trust</span><strong id="trust">--</strong><small id="support-confidence">--</small></div>
+        <div class="metric"><span>Predicted regime</span><strong id="regime">--</strong><small id="transition-time">--</small></div>
+        <div class="metric"><span>Expected SSIM</span><strong id="expected-ssim">--</strong><small>held-out branch benchmark</small></div>
+        <div class="metric"><span>Image MAE</span><strong id="image-mae">--</strong><small>held-out branch benchmark</small></div>
+        <div class="metric"><span>Regime accuracy</span><strong id="regime-accuracy">--</strong><small>supported frames</small></div>
+      </div>
+
+      <section class="panel reconstruction-panel">
+        <div class="section-head">
+          <div>
+            <h2>Reconstructed Bubble Frame</h2>
+            <p id="frame-subtitle">--</p>
+          </div>
+          <div class="expert-badge" id="expert-badge">--</div>
+        </div>
+        <div class="reconstruction-grid">
+          <figure class="frame-stage">
+            <img id="predicted-frame" alt="Predicted bubble microscopy frame">
+            <figcaption id="prototype-caption">--</figcaption>
+          </figure>
+          <div class="morphology-panel">
+            <h3>Predicted morphology</h3>
+            <div class="morphology-grid">
+              <div><span>Bubble count</span><strong id="bubble-count">--</strong><small id="bubble-count-sd">--</small></div>
+              <div><span>Mean radius</span><strong id="bubble-radius">--</strong><small id="bubble-radius-sd">--</small></div>
+              <div><span>Wall fraction</span><strong id="wall-fraction">--</strong><small id="wall-fraction-sd">--</small></div>
+              <div><span>Wall thickness</span><strong id="wall-thickness">--</strong><small id="wall-thickness-sd">--</small></div>
+            </div>
+            <div class="distance-row">
+              <span>Prototype distance</span>
+              <strong id="prototype-distance">--</strong>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel support-panel">
+        <div class="section-head">
+          <div>
+            <h2>Nearest Support Frames</h2>
+            <p>Ranked by input and predicted morphology distance</p>
+          </div>
+        </div>
+        <div class="support-strip" id="support-strip"></div>
+      </section>
+
+      <section class="grid-two">
+        <div class="panel compact">
+          <h2>Transfer Evidence</h2>
+          <dl class="evidence-list">
+            <div><dt>Selected expert</dt><dd id="selected-expert">--</dd></div>
+            <div><dt>Regime classifier</dt><dd id="classifier">--</dd></div>
+            <div><dt>Validation frames</dt><dd id="validation-frames">--</dd></div>
+            <div><dt>Input images</dt><dd>None from target branch</dd></div>
+          </dl>
+        </div>
+        <div class="panel compact">
+          <h2>Prediction Inputs</h2>
+          <dl class="evidence-list">
+            <div><dt>Time</dt><dd id="input-time">--</dd></div>
+            <div><dt>Foam height</dt><dd id="input-hfoam">--</dd></div>
+            <div><dt>Concentration</dt><dd id="input-concentration">--</dd></div>
+            <div><dt>Material branch</dt><dd id="input-branch">--</dd></div>
+          </dl>
+        </div>
+      </section>
+    </section>
+  </main>
+  <script src="app.js?v=level5-v2-compact"></script>
+</body>
+</html>

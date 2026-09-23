@@ -1,0 +1,28 @@
+{
+  "pinned_on": "2026-09-23",
+  "champion": "support_aware_hierarchical_router_v2",
+  "model_type": "support-aware mixture of validated transfer experts",
+  "output_root": "/Users/elfedwa/AIMAT Dropbox/Fedwa El/Mac (2)/Documents/Codex/2026-08-10/bubble-image-reconstruction-timeseries/outputs/height_to_image_level5/support_aware_hierarchical_router_v2",
+  "config": "/Users/elfedwa/AIMAT Dropbox/Fedwa El/Mac (2)/Documents/Codex/2026-08-10/bubble-image-reconstruction-timeseries/outputs/height_to_image_level5/support_aware_hierarchical_router_v2/config.json",
+  "summary": "/Users/elfedwa/AIMAT Dropbox/Fedwa El/Mac (2)/Documents/Codex/2026-08-10/bubble-image-reconstruction-timeseries/outputs/height_to_image_level5/support_aware_hierarchical_router_v2/level5_v2_branch_holdout_summary.csv",
+  "predictions": "/Users/elfedwa/AIMAT Dropbox/Fedwa El/Mac (2)/Documents/Codex/2026-08-10/bubble-image-reconstruction-timeseries/outputs/height_to_image_level5/support_aware_hierarchical_router_v2/level5_v2_all_predictions.csv",
+  "gallery": "/Users/elfedwa/AIMAT Dropbox/Fedwa El/Mac (2)/Documents/Codex/2026-08-10/bubble-image-reconstruction-timeseries/outputs/height_to_image_level5/support_aware_hierarchical_router_v2/level5_v2_actual_vs_generated.png",
+  "weighted_metrics": {
+    "SSIM": 0.5036487390469361,
+    "image_MAE": 22.459222264945286,
+    "balanced_regime_accuracy": 0.9491236057637749,
+    "supported_balanced_regime_accuracy": 0.9837619899443619,
+    "confidence": 0.616819319978914
+  },
+  "leakage_audit": {
+    "n_test_frames": 4336,
+    "n_heldout_branches": 7,
+    "target_branch_images_used_in_training": false,
+    "target_images_used_as_input": false,
+    "same_branch_prototype_used": false,
+    "same_image_used": false,
+    "duplicate_target_rows": 0
+  },
+  "fallback": "joint_two_surfactant_descriptor_v1",
+  "usage_note": "This champion is a routed package; retain all model roots referenced by config.json."
+}
